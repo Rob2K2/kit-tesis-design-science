@@ -12,11 +12,11 @@ El título fue seleccionado por el tesista porque declara la clase de problema y
 
 Los sistemas de origen que envían transferencias mediante una cámara operan con interacciones asíncronas: una solicitud obtiene una confirmación inmediata, mientras el resultado final llega posteriormente en otra interacción. En este contexto, un cierre programado de la cámara puede trasladar la indisponibilidad al usuario y obligarlo a repetir la operación; además, una respuesta satisfactoria duplicada puede aplicar más de una vez un efecto financiero si el sistema de origen no reconoce que corresponde a una transferencia ya procesada.
 
-El problema de diseño consiste en construir una arquitectura que conserve solicitudes aceptadas durante cierres programados, las despache después de la reapertura sin nueva intervención del usuario y procese una sola vez resultados equivalentes. El problema de investigación —que en el formato institucional se registrará como **problema científico**— surge porque la literatura ofrece patrones generales de recuperación e idempotencia, pero la búsqueda inicial todavía no identifica evidencia específica sobre qué combinación de capacidades produce esas propiedades en transferencias financieras asíncronas con cierres programados y resultados duplicados (Amiri et al., 2023; Ding et al., 2023; Mendonça et al., 2020).
+El problema de diseño consiste en construir una arquitectura que conserve solicitudes aceptadas durante cierres programados, las despache después de la reapertura sin nueva intervención del usuario y procese una sola vez resultados equivalentes. El problema de investigación —que en el formato institucional se registrará como **problema científico**— no es la ausencia de mecanismos: existen bandejas transaccionales, ejecución durable, reintentos, consulta e idempotencia. La revisión rápida no identificó una evaluación común que determine qué respuesta arquitectónica es necesaria para cada fallo seleccionado, qué garantía produce, qué costo introduce y bajo qué contrato externo conserva su validez.
 
 ## Pregunta de investigación
 
-**¿Qué principios de diseño permiten que una arquitectura de referencia para sistemas monolíticos integrados con servicios externos mediante mensajería asíncrona conserve las solicitudes aceptadas y evite duplicar efectos de negocio ante cierres temporales, pérdida de confirmación, resultados duplicados y fallos locales, según su construcción y evaluación en transferencias financieras simuladas?**
+**¿Qué principios permiten seleccionar y combinar persistencia durable, identidad e idempotencia, y consulta o reintento para que sistemas monolíticos integrados con servicios externos mediante mensajería asíncrona conserven solicitudes y eviten efectos duplicados ante cierres temporales, pérdida de confirmación, resultados duplicados y fallos locales?**
 
 Esta es una pregunta prescriptiva de nivel de clase: exige construir y evaluar el artefacto, incorpora utilidad y busca conocimiento reutilizable. En el formato institucional, la brecha que origina esta pregunta se registrará como **problema científico**.
 
@@ -36,13 +36,13 @@ El objeto de estudio es una composición de modelo arquitectónico, principios d
 
 ### Objetivo general
 
-Diseñar y evaluar una arquitectura de referencia para sistemas monolíticos integrados con servicios externos mediante mensajería asíncrona, con el fin de identificar principios de diseño que permitan conservar solicitudes aceptadas y evitar la duplicación de efectos de negocio, mediante una aplicación experimental en transferencias financieras.
+Diseñar y evaluar una arquitectura de referencia para sistemas monolíticos integrados con servicios externos mediante mensajería asíncrona, con el fin de identificar principios para seleccionar y combinar mecanismos de persistencia, idempotencia y recuperación según el fallo, la garantía requerida y las condiciones del servicio externo.
 
 ### Objetivos específicos
 
 1. Caracterizar el flujo de integración, la arquitectura básica y los cuatro escenarios de fallo que representan la clase de problema.
 2. Derivar de la base de conocimiento y del diagnóstico los requisitos, criterios de éxito y alternativas de solución antes de construir.
-3. Diseñar e implementar una arquitectura básica y una arquitectura propuesta como instancias experimentales mínimas en .NET Core.
+3. Diseñar e implementar variantes experimentales mínimas en .NET Core que permitan aislar las respuestas arquitectónicas comparadas en cada escenario.
 4. Ejecutar una evaluación formativa, documentar sus hallazgos y rediseñar el artefacto.
 5. Comparar ambas arquitecturas mediante una evaluación sumativa controlada y articular los principios de diseño y sus condiciones de contorno.
 
@@ -58,13 +58,13 @@ El modelo contiene el conocimiento representacional; la instanciación permite g
 
 ## Campo de acción
 
-Integraciones en las que un sistema monolítico envía a un servicio externo una solicitud que modifica estado, recibe una confirmación inicial y obtiene posteriormente un resultado asíncrono que puede repetirse. La evaluación se realizará mediante transferencias financieras salientes simuladas en un laboratorio .NET Core con datos sintéticos durante 2026. Se excluyen integraciones síncronas, operaciones de solo lectura, acreditaciones entrantes, sobrecarga de la red interna y evaluación criptográfica.
+Integraciones en las que un sistema monolítico envía a un servicio externo una solicitud que modifica estado, recibe una confirmación inicial y obtiene posteriormente un resultado asíncrono que puede repetirse. La evaluación se realizará mediante transferencias financieras salientes simuladas en un laboratorio .NET Core con datos sintéticos durante 2026. La arquitectura lógica será independiente del entorno de despliegue; la única instancia evaluada será local y se añadirá un mapeo ilustrativo, no evaluado, hacia servicios de AWS. Se excluyen integraciones síncronas, operaciones de solo lectura, acreditaciones entrantes, sobrecarga de la red interna y evaluación criptográfica.
 
 ## Núcleo de la contribución
 
 El tesista formuló y explicó la siguiente contribución, ajustada solo para retirar calificativos no evaluables y precisar la propiedad de consistencia:
 
-> Esta investigación aportará principios de diseño para que sistemas monolíticos integrados con servicios externos mediante mensajería asíncrona conserven las solicitudes aceptadas durante indisponibilidades temporales y eviten aplicar más de una vez los efectos de resultados duplicados.
+> Esta investigación aportará principios validados para determinar en qué fallos deben utilizarse persistencia durable, identidad e idempotencia, y consulta o reintento, cómo deben combinarse, qué garantía producen y bajo qué condiciones externas resultan aplicables.
 
 El tesista explica «procesar una sola vez» como no ejecutar una segunda operación de negocio ante un resultado ya recibido. Reconoce que los principios no aplican a aplicaciones sin integración externa. La condición de contorno se amplía metodológicamente: tampoco se reclaman para integraciones síncronas, operaciones de solo lectura ni protocolos sin resultado posterior.
 
@@ -108,7 +108,7 @@ La secuencia sigue FEDS (Venable et al., 2016):
 
 1. **Evaluación artificial formativa:** se aplicará el fallo local entre aceptación y despacho durable sobre la primera versión. El resultado deberá producir al menos una decisión de rediseño documentada; si no revela ninguna debilidad, se revisará la capacidad discriminante del escenario.
 2. **Rediseño y verificación interna:** se corregirá el artefacto y se repetirán las pruebas técnicas.
-3. **Evaluación técnica sumativa:** se compararán la referencia básica y la versión propuesta mediante cierre programado, resultado duplicado, confirmación inicial perdida y regresión del fallo local.
+3. **Evaluación técnica sumativa por descomposición:** en cada escenario se compararán dos respuestas arquitectónicas reales: rechazo frente a aceptación durable; comprobación separada frente a efecto atómico; reenvío inmediato frente a consulta previa; y publicación directa frente a conservación transaccional.
 
 No se declarará evaluación de campo. La evidencia demostrará comportamiento en condiciones controladas, no utilidad en operación bancaria real.
 
@@ -119,14 +119,16 @@ No se declarará evaluación de campo. La evidencia demostrará comportamiento e
 - Todas las operaciones en estado terminal o conciliable.
 - Conservación de solicitudes aceptadas durante el cierre sin nueva intervención del usuario.
 - Inicio del intento de envío dentro de los 10 segundos posteriores a la reapertura simulada.
+- Espera de 10 segundos tras la pérdida de la confirmación inicial antes de consultar el estado.
+- Sobrecarga de la aceptación local, sin fallos, menor o igual al 20% respecto de la variante directa.
 
 ## Tipo de contribución reclamada
 
-La contribución reclamada es de nivel de clase: principios de diseño con condiciones de contorno para integraciones asíncronas estructuralmente similares. La posición en el marco de contribuciones de Gregor y Hevner (2013) permanece provisional hasta que E5 determine cuánto conocimiento y cuántas soluciones existen. No se reclamará una teoría de diseño ni validez universal.
+La contribución reclamada es de nivel de clase: principios de selección y combinación con condiciones de contorno para integraciones asíncronas estructuralmente similares. Después de E5, la posición provisional en el marco de Gregor y Hevner (2013) es de mejora: los mecanismos son conocidos y la contribución pretendida es evidencia sobre su necesidad, interacción y límites. Si la evaluación solo confirma el comportamiento ya documentado de las herramientas, la contribución deberá reducirse y no podrá presentarse como conocimiento original. No se reclamará una teoría de diseño ni validez universal.
 
 ## Selección y muestra experimental
 
-No habrá participantes humanos. Las unidades experimentales serán ejecuciones independientes de la arquitectura básica y la propuesta bajo los cuatro escenarios. Se planifican, como punto de partida, 30 repeticiones por combinación de arquitectura y escenario, para un mínimo de 240 ejecuciones sumativas; cada ejecución reiniciará el estado y conservará registros automáticos. La cantidad definitiva se fijará en E8 antes de observar resultados.
+No habrá participantes humanos. Las unidades experimentales serán ejecuciones independientes de dos respuestas arquitectónicas por cada uno de los cuatro escenarios. Se planifican 30 repeticiones por alternativa y escenario, para un mínimo de 240 ejecuciones sumativas; cada ejecución reiniciará el estado y conservará registros automáticos. La cantidad definitiva se fijará en E8 antes de observar resultados.
 
 La aplicación ejemplar utilizará cuentas, saldos, solicitudes y respuestas sintéticas. El simulador externo ofrecerá confirmación inicial, consulta por identidad, resultado posterior y reconocimiento de reenvíos con la misma identidad. Estas capacidades son condiciones de contorno declaradas, no propiedades atribuidas a todas las cámaras.
 
@@ -153,14 +155,14 @@ El cronograma no tiene holgura. Cualquier retraso obligará a reducir detalles d
 
 Para cada ejecución se extraerán: solicitudes aceptadas, solicitudes perdidas, identidades procesadas, efectos de negocio aplicados, estado final, consultas, reenvíos y tiempo hasta el despacho posterior a la reapertura. Los criterios binarios se informarán como conteos y proporciones observadas; los tiempos se resumirán mediante mediana, rango y percentil 95 cuando las repeticiones lo permitan.
 
-La comparación se realizará por escenario entre referencia básica y propuesta. No se inferirá generalización estadística a sistemas reales. La contribución se derivará trazando cada resultado hacia el mecanismo que lo produjo y formulando principios con objetivo, contexto, mecanismo y condición de contorno. Si un criterio falla en las ejecuciones reservadas, se informará el incumplimiento; no se redefinirá el criterio después de observar los datos.
+La comparación se realizará por escenario entre dos respuestas arquitectónicas plausibles. No se inferirá generalización estadística a sistemas reales. La contribución se derivará trazando cada resultado hacia el mecanismo que lo produjo y formulando principios con objetivo, contexto, mecanismo y condición de contorno. Si un criterio falla en las ejecuciones reservadas, se informará el incumplimiento; no se redefinirá el criterio después de observar los datos.
 
 Las amenazas principales previstas son: representación incompleta del constructo de confiabilidad; simplificación artificial del entorno; sesgo del investigador como constructor y evaluador; dependencia del contrato de consulta o deduplicación remota; y número limitado de escenarios. Sus mitigaciones serán trazabilidad, automatización, separación de configuraciones formativas y sumativas, publicación de código y registros, y delimitación explícita de las afirmaciones.
 
 ## Anexo previsto del artefacto
 
-El anexo incluirá el modelo de estados, diagramas de componentes y secuencia, contratos de mensajes, decisiones y alternativas descartadas, código de ambas instancias, simulador externo, inyectores de fallos, datos sintéticos, instrucciones de ejecución, resultados brutos y registro de cambios entre versiones. No contendrá nombres, código ni documentos de la entidad bancaria histórica.
+El anexo incluirá el modelo de estados, diagramas de componentes y secuencia, contratos de mensajes, decisiones y alternativas descartadas, código de ambas instancias, simulador externo, inyectores de fallos, datos sintéticos, instrucciones de ejecución, resultados brutos y registro de cambios entre versiones. Añadirá un mapeo ilustrativo de componentes hacia AWS, sin afirmar implementación ni validación en la nube. No contendrá nombres, código ni documentos de la entidad bancaria histórica.
 
 ## Cierre de E3
 
-El perfil contiene título, ambos problemas, pregunta, objeto, objetivos, tipología, base inicial, método, evaluación, contribución, muestra, cronograma, análisis y anexo previsto. La oración de contribución fue formulada y explicada por el tesista. E3 queda cerrada; la brecha y la posición de contribución podrán corregirse en E5 si la evidencia contradice la formulación provisional.
+El perfil contiene título, ambos problemas, pregunta, objeto, objetivos, tipología, base inicial, método, evaluación, contribución, muestra, cronograma, análisis y anexo previsto. La oración de contribución fue formulada y explicada por el tesista. E3 quedó cerrada y fue actualizada después de E5 para incorporar la brecha corregida, la evaluación por descomposición y la posición provisional de mejora.

@@ -9,7 +9,7 @@
 - **Fecha de inicio:** 23 de septiembre de 2026.
 - **Predefensa planificada:** 15 de octubre de 2026.
 - **Defensa planificada:** 12 de noviembre de 2026.
-- **Etapa actual:** E4. Marco teórico.
+- **Etapa actual:** E7a. Alternativas de solución.
 
 ## Etapas completadas
 
@@ -17,6 +17,9 @@
 - E1. Áreas y temas, cerrada el 27 de septiembre de 2026.
 - E2. Delimitación, cerrada el 27 de septiembre de 2026.
 - E3. Perfil de investigación DS, cerrada el 28 de septiembre de 2026.
+- E4. Marco teórico, cerrada el 3 de octubre de 2026.
+- E5. Estado del arte, cerrada el 4 de octubre de 2026.
+- E6. Diagnóstico, cerrada el 6 de octubre de 2026.
 
 ## Decisiones tomadas
 
@@ -74,13 +77,31 @@
 - La consulta remota por identidad o el reconocimiento de la misma identidad en reenvíos es una condición de contorno; sin ella, el origen no puede garantizar por sí solo un único efecto remoto.
 - El perfil DS quedó consolidado con pregunta principal, cinco subpreguntas, objetivo general, cinco objetivos específicos, tipología compuesta, DSRM, estrategia FEDS, muestra experimental inicial de 240 ejecuciones, cronograma y plan de análisis.
 - La evaluación formativa y el rediseño se planifican antes de la predefensa; la evaluación sumativa se planifica entre el 24 y el 29 de octubre.
+- El tesista ha implementado colas y políticas de reintento con Polly.
+- Para la instancia experimental domina SQL Server y RabbitMQ.
+- Los principios se formularán de manera independiente de tecnología; .NET Core, SQL Server, RabbitMQ y Polly serán recursos de la instancia.
+- La infraestructura se instalará directamente para reducir riesgo de plazo. La contenerización será opcional y solo se realizará después de verificar el experimento.
+- E4 verificó 11 fuentes recientes de 2021–2026 y fuentes metodológicas o técnicas complementarias.
+- El marco fija ocho restricciones teóricas: aceptación durable, identidad estable, efecto idempotente, incertidumbre explícita, consulta antes de repetición incierta, reintento clasificado y acotado, confirmación observable y evaluación trazable.
+- La bandeja transaccional no se asumirá como solución obligatoria porque la búsqueda no encontró evidencia académica reciente consolidada suficiente; se comparará con alternativas.
+- E5 examinó RabbitMQ/Polly, MassTransit, NServiceBus, CAP, Wolverine, Temporal, Dapr, Durable Task y contratos de proveedores de pago.
+- La brecha inicial queda corregida: identidad estable, consulta de estado e idempotencia ya son prácticas documentadas; no se reclamarán como mecanismos nuevos.
+- La contribución propuesta pasa a centrarse en evidencia por descomposición: qué mecanismo es necesario para cada fallo, qué garantía produce y qué condición externa la limita.
+- Si la evaluación solo demuestra que una bandeja transaccional con deduplicación funciona, el trabajo quedará en nivel de instancia y no alcanzará el estándar de maestría.
+- El tesista acepta que la contribución se centre en necesidad, interacción y límites de mecanismos conocidos.
+- El tesista acepta una evaluación por descomposición con dos alternativas reales por escenario, manteniendo 240 ejecuciones.
+- El tesista formula el conocimiento buscado como determinar en qué casos utilizar cada mecanismo y de qué forma.
+- El perfil E3 fue corregido después de E5: la pregunta, el objetivo, la contribución, la muestra y el plan de análisis ahora reflejan selección y combinación de mecanismos conocidos.
+- La arquitectura lógica será independiente del entorno de despliegue.
+- La evaluación se realizará únicamente en una instancia local; se documentará un mapeo ilustrativo hacia AWS sin implementar ni afirmar validación en la nube.
+- E6 fija siete indicadores antes de construir. No hay línea base de producción; la comparación cuantitativa usará variantes de control.
+- Los umbrales confirmados son: cero pérdidas, cero efectos duplicados, cero repeticiones manuales, estados terminales o conciliables, despacho en 10 segundos, consulta a los 10 segundos tras perder la confirmación y sobrecarga local máxima de 20%.
+- PayPal (2026) y SIBS (s. f.-a, s. f.-b) quedan aceptados como evidencia de la clase de problema, no como descripción del banco histórico.
 
 ## Decisiones pendientes
 
-- Construir el marco teórico que justifique cada decisión significativa del artefacto.
-- Fijar la pregunta y el protocolo de búsqueda teórica de E4.
-- Determinar cuántas fuentes recientes verificadas son suficientes y comprobar la prueba de eliminación.
+- Ninguna de E6.
 
 ## Próxima etapa
 
-Cerrar E4 con una base de conocimiento que cambie decisiones concretas del diseño, no con una descripción general del dominio.
+E7a. Formalizar al menos dos alternativas reales por escenario, con sus costos y la decisión de cuál se diseña como propuesta.
