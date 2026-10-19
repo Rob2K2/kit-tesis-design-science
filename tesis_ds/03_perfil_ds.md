@@ -137,19 +137,18 @@ La aplicación ejemplar utilizará cuentas, saldos, solicitudes y respuestas sin
 - **28–30 de septiembre:** cierre del perfil DS y protocolo inicial de búsqueda.
 - **1–4 de octubre:** marco teórico, estado del arte y confirmación de la brecha.
 - **5–6 de octubre:** diagnóstico, línea base conceptual, indicadores y criterios definitivos.
-- **7–10 de octubre:** alternativas, requisitos, diseño y primera versión experimental.
-- **11 de octubre:** evaluación formativa mediante fallo local.
-- **12 de octubre:** rediseño y prueba de regresión inicial.
-- **13–14 de octubre:** consolidación de perfil, ficha preliminar y preparación de predefensa.
-- **15 de octubre:** predefensa.
-- **16–23 de octubre:** construcción final, verificación interna y documentación reproducible.
-- **24–29 de octubre:** evaluación sumativa automatizada.
-- **30 de octubre–2 de noviembre:** análisis y articulación inicial de principios.
-- **3–8 de noviembre:** redacción, amenazas a la validez y conclusiones.
-- **9–11 de noviembre:** revisión final y correcciones.
-- **12 de noviembre:** defensa prevista.
+- **7–10 de octubre:** el plan original incluía alternativas, requisitos, diseño y primera versión. Se cerraron las tres primeras; la versión no se construyó.
+- **11–12 de octubre:** el plan original ubicaba aquí la evaluación formativa y el rediseño. No se ejecutaron.
+- **13 de octubre:** alternativas, requisitos y diseño quedaron cerrados.
 
-El cronograma no tiene holgura. Cualquier retraso obligará a reducir detalles de implementación, no a añadir escenarios ni a eliminar el rediseño.
+El 18 de octubre de 2026 el tesista retiró el 15 de octubre y el 12 de noviembre como fechas comprometidas. La predefensa queda a inicios de noviembre y la defensa a finales de noviembre, sin día fijado. El tramo pendiente, a partir del 18 de octubre, sigue este orden:
+
+- **Resto de octubre:** plan de construcción, instancia inicial, verificación interna, evaluación formativa del fallo local y rediseño.
+- **Inicios de noviembre:** predefensa, sin día fijado. Para esa ventana deben existir el perfil, el diseño y el registro del rediseño formativo.
+- **Entre la predefensa y la defensa:** evaluación sumativa, análisis, principios, amenazas a la validez y redacción.
+- **Finales de noviembre:** defensa, sin día fijado.
+
+Cualquier retraso obligará a reducir detalles de implementación, no a añadir escenarios ni a eliminar el rediseño.
 
 ## Plan de análisis
 

@@ -7,9 +7,9 @@
 - **Tutor:** Luis Roberto Pérez Rios, Ph.D.
 - **Tesista:** Roberto Carlos Merino Almaraz.
 - **Fecha de inicio:** 23 de septiembre de 2026.
-- **Predefensa planificada:** 15 de octubre de 2026.
-- **Defensa planificada:** 12 de noviembre de 2026.
-- **Etapa actual:** E7a. Alternativas de solución.
+- **Predefensa:** inicios de noviembre de 2026, sin día fijado.
+- **Defensa:** finales de noviembre de 2026, sin día fijado.
+- **Etapa actual:** E8. Evaluación.
 
 ## Etapas completadas
 
@@ -20,6 +20,11 @@
 - E4. Marco teórico, cerrada el 3 de octubre de 2026.
 - E5. Estado del arte, cerrada el 4 de octubre de 2026.
 - E6. Diagnóstico, cerrada el 6 de octubre de 2026.
+- E7a. Alternativas de solución, cerrada el 13 de octubre de 2026.
+- E7b. Requisitos del artefacto, cerrada el 13 de octubre de 2026.
+- E7c. Diseño del artefacto, cerrada el 13 de octubre de 2026.
+- E7d. Plan de construcción y versiones, cerrada el 18 de octubre de 2026.
+- E7e. Construcción y verificación interna, cerrada el 19 de octubre de 2026.
 
 ## Decisiones tomadas
 
@@ -76,7 +81,8 @@
 - El fallo local se aplicará primero como evaluación formativa, provocará rediseño y se repetirá como regresión en la evaluación sumativa.
 - La consulta remota por identidad o el reconocimiento de la misma identidad en reenvíos es una condición de contorno; sin ella, el origen no puede garantizar por sí solo un único efecto remoto.
 - El perfil DS quedó consolidado con pregunta principal, cinco subpreguntas, objetivo general, cinco objetivos específicos, tipología compuesta, DSRM, estrategia FEDS, muestra experimental inicial de 240 ejecuciones, cronograma y plan de análisis.
-- La evaluación formativa y el rediseño se planifican antes de la predefensa; la evaluación sumativa se planifica entre el 24 y el 29 de octubre.
+- La evaluación formativa y el rediseño se planifican antes de la predefensa; la evaluación sumativa queda entre la predefensa y la defensa.
+- El 18 de octubre de 2026 el tesista retira el 15 de octubre y el 12 de noviembre como fechas comprometidas. La predefensa pasa a inicios de noviembre y la defensa a finales de noviembre, ambas sin día fijado.
 - El tesista ha implementado colas y políticas de reintento con Polly.
 - Para la instancia experimental domina SQL Server y RabbitMQ.
 - Los principios se formularán de manera independiente de tecnología; .NET Core, SQL Server, RabbitMQ y Polly serán recursos de la instancia.
@@ -97,11 +103,26 @@
 - E6 fija siete indicadores antes de construir. No hay línea base de producción; la comparación cuantitativa usará variantes de control.
 - Los umbrales confirmados son: cero pérdidas, cero efectos duplicados, cero repeticiones manuales, estados terminales o conciliables, despacho en 10 segundos, consulta a los 10 segundos tras perder la confirmación y sobrecarga local máxima de 20%.
 - PayPal (2026) y SIBS (s. f.-a, s. f.-b) quedan aceptados como evidencia de la clase de problema, no como descripción del banco histórico.
+- E7a elige como propuesta la aceptación durable, el efecto atómico, la consulta previa con la misma identidad y el trabajo pendiente en la misma transacción.
+- Los cuatro controles se construyen en el mismo programa y se activan por configuración.
+- MassTransit, NServiceBus, CAP, Wolverine, Temporal, Dapr y Durable Task no forman parte de la instancia. El tesista aceptó esa recomendación el 13 de octubre de 2026.
+- Si la consulta indica que la cámara ya recibió la solicitud, el origen espera el resultado final y no reenvía.
+- Si la consulta indica que la solicitud no existe, el origen reenvía una sola vez la misma identidad de transferencia.
+- Si la consulta no responde, la operación queda en conciliación: se conservan identidad, monto y retención, sin débito, liberación ni reenvío. El tesista aceptó esa definición el 13 de octubre de 2026.
+- E7b fija RF-01 a RF-16 y RC-01 a RC-05. Si la sobrecarga supera el 20%, se informa el incumplimiento; no se relaja la conservación de la solicitud.
+- E7c fija tres procesos: origen, cámara simulada y ejecutor. Los cuatro intercambios usan RabbitMQ. La confirmación del publicador no sustituye a la confirmación inicial. En cada ejecución cambia un solo mecanismo.
+- El 18 de octubre de 2026 el tesista confirmó que V1 contrasta solo el fallo local. Los otros tres escenarios quedan para V3.
+- Las 240 ejecuciones de V3 empiezan solo cuando V2 tiene un rediseño documentado, cada ejecución cambia un solo mecanismo, los datos se reinician, la caída es reproducible, los siete indicadores pueden calcularse y la cámara consulta por identidad.
+- El 18 de octubre de 2026 se comprobó el entorno de E7e: el SDK de .NET 10.0.401 y SQL Server 2022 Developer responden con autenticación de Windows. RabbitMQ no estaba instalado y el puerto 5672 no respondía. No hay código de la instancia.
+- El tesista confirmó que el código vive en la carpeta `artefacto/` y pidió que RabbitMQ se instale en esta máquina.
+- Erlang/OTP 28.5 y RabbitMQ 4.3.6 quedaron instalados. El servicio responde en el puerto 5672. Erlang 29 no se usó porque esa versión de RabbitMQ no la admite.
+- V0 quedó construida en `artefacto/` y `verificar-v0` terminó con código 0 el 18 de octubre de 2026. El publicador se confirmó antes de la confirmación inicial, y el reinicio conservó la transacción ya confirmada.
+- V1, verificada el 19 de octubre de 2026 con cinco repeticiones internas por respuesta, no con las 240 sumativas. La publicación directa perdió el despacho en 5 de 5 caídas. El trabajo pendiente lo retomó en 5 de 5. Las medianas de aceptación fueron 97 ms y 95 ms. El umbral del 20% no se modifica.
 
 ## Decisiones pendientes
 
-- Ninguna de E6.
+- Ninguna de E7e.
 
 ## Próxima etapa
 
-E7a. Formalizar al menos dos alternativas reales por escenario, con sus costos y la decisión de cuál se diseña como propuesta.
+E8. Interpretar el fallo local como evaluación formativa y documentar el rediseño antes de la sumativa.
