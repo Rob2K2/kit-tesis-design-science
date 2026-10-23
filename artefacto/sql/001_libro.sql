@@ -86,3 +86,12 @@ IF NOT EXISTS (SELECT 1 FROM dbo.Ventana)
 
 IF COL_LENGTH(N'dbo.Transferencia', N'DuracionAceptacionMs') IS NULL
     ALTER TABLE dbo.Transferencia ADD DuracionAceptacionMs int NULL;
+
+IF COL_LENGTH(N'dbo.Transferencia', N'Reenvios') IS NULL
+    ALTER TABLE dbo.Transferencia ADD Reenvios int NOT NULL CONSTRAINT DF_Transferencia_Reenvios DEFAULT 0;
+
+IF COL_LENGTH(N'dbo.Transferencia', N'Consultas') IS NULL
+    ALTER TABLE dbo.Transferencia ADD Consultas int NOT NULL CONSTRAINT DF_Transferencia_Consultas DEFAULT 0;
+
+IF COL_LENGTH(N'dbo.Transferencia', N'ConsultadaEn') IS NULL
+    ALTER TABLE dbo.Transferencia ADD ConsultadaEn datetime2 NULL;

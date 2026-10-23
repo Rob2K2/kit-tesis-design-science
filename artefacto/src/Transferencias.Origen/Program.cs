@@ -15,6 +15,7 @@ public static class Programa
         var directa = Environment.GetEnvironmentVariable("PUBLICACION") == "Directa";
         await using var conexion = new SqlConnection(Cadena);
         await conexion.OpenAsync();
+        await ConciliarSinDespacho(conexion);
         using var broker = new Broker();
         Console.WriteLine(directa
             ? "[origen] en ejecución con publicación directa"
@@ -30,14 +31,35 @@ public static class Programa
                 return;
             }
 
-            foreach (var mensaje in pendientesEnMemoria)
-                await PublicarDirecta(conexion, broker, mensaje);
-            pendientesEnMemoria.Clear();
-            await PublicarPendientes(conexion, broker);
+            if (await VentanaAbierta(conexion, transaccion: null))
+            {
+                foreach (var mensaje in pendientesEnMemoria)
+                    await PublicarDirecta(conexion, broker, mensaje);
+                pendientesEnMemoria.Clear();
+                await PublicarPendientes(conexion, broker);
+            }
+
             await RecibirConfirmaciones(conexion, broker);
+            await Recuperar(conexion, broker);
             await AplicarResultados(conexion, broker);
             await Task.Delay(200);
         }
+    }
+
+    private static async Task ConciliarSinDespacho(SqlConnection conexion)
+    {
+        await using var comando = new SqlCommand("""
+            UPDATE dbo.Transferencia
+            SET Estado = N'Conciliacion', ActualizadaEn = SYSUTCDATETIME()
+            WHERE Estado = N'FondosRetenidos'
+              AND PublicadorConfirmadoEn IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.TrabajoPendiente p
+                  WHERE p.TransferenciaId = dbo.Transferencia.TransferenciaId)
+            """, conexion);
+        var marcadas = await comando.ExecuteNonQueryAsync();
+        if (marcadas > 0)
+            Console.WriteLine($"[origen] {marcadas} solicitud(es) sin despacho pasaron a conciliación");
     }
 
     private static async Task<int> AceptarSolicitudes(
@@ -98,7 +120,9 @@ public static class Programa
 
         var transferenciaId = Guid.NewGuid();
         var ahora = DateTime.UtcNow;
-        if (saldo is null || saldo < monto)
+        var rechazarDuranteCierre = Environment.GetEnvironmentVariable("CIERRE") == "Rechazar";
+        var ventanaAbierta = await VentanaAbierta(conexion, transaccion);
+        if (saldo is null || saldo < monto || (!ventanaAbierta && rechazarDuranteCierre))
         {
             await InsertarTransferencia(conexion, transaccion, transferenciaId, cuentaId, monto, Estados.RechazadaSinRetencion, ahora);
         }
@@ -230,8 +254,102 @@ public static class Programa
         }
     }
 
+    private static async Task<bool> VentanaAbierta(SqlConnection conexion, SqlTransaction? transaccion)
+    {
+        await using var comando = new SqlCommand(
+            "SELECT Abierta FROM dbo.Ventana WHERE Id = 1", conexion, transaccion);
+        var valor = await comando.ExecuteScalarAsync();
+        return valor is bool abierta && abierta;
+    }
+
+    private static async Task Recuperar(SqlConnection conexion, Broker broker)
+    {
+        var inmediata = Environment.GetEnvironmentVariable("RECUPERACION") == "ReenvioInmediato";
+        var espera = inmediata ? 1 : 10;
+        var filas = new List<(Guid Id, string Cuenta, decimal Monto, int Reenvios, int Consultas, int Segundos)>();
+        await using (var leer = new SqlCommand("""
+            SELECT TransferenciaId, CuentaId, Monto, Reenvios, Consultas,
+                   DATEDIFF(SECOND, PublicadorConfirmadoEn, SYSUTCDATETIME())
+            FROM dbo.Transferencia
+            WHERE Estado = N'Enviada' AND ConfirmacionInicialEn IS NULL
+              AND PublicadorConfirmadoEn IS NOT NULL
+            """, conexion))
+        await using (var lector = await leer.ExecuteReaderAsync())
+        {
+            while (await lector.ReadAsync())
+                filas.Add((lector.GetGuid(0), lector.GetString(1), lector.GetDecimal(2),
+                    lector.GetInt32(3), lector.GetInt32(4), lector.GetInt32(5)));
+        }
+
+        foreach (var fila in filas)
+        {
+            if (fila.Segundos < espera)
+                continue;
+            if (inmediata && fila.Reenvios == 0)
+                await Reenviar(conexion, broker, fila.Id, fila.Cuenta, fila.Monto);
+            else if (!inmediata && fila.Consultas == 0)
+                await Consultar(conexion, broker, fila.Id, fila.Cuenta, fila.Monto);
+        }
+
+        while (broker.Tomar(Colas.RespuestasConsulta) is { } respuesta)
+            await AplicarRespuesta(conexion, broker, respuesta);
+    }
+
+    private static async Task Reenviar(
+        SqlConnection conexion, Broker broker, Guid id, string cuenta, decimal monto)
+    {
+        broker.Publicar(Colas.Solicitudes, new MensajeTransferencia(id, cuenta, monto, TiposMensaje.Solicitud));
+        await using var comando = new SqlCommand("""
+            UPDATE dbo.Transferencia SET Reenvios = Reenvios + 1, ActualizadaEn = SYSUTCDATETIME()
+            WHERE TransferenciaId = @id
+            """, conexion);
+        comando.Parameters.AddWithValue("@id", id);
+        await comando.ExecuteNonQueryAsync();
+        Console.WriteLine($"[origen] reenvío inmediato {id}");
+    }
+
+    private static async Task Consultar(
+        SqlConnection conexion, Broker broker, Guid id, string cuenta, decimal monto)
+    {
+        broker.Publicar(Colas.Consultas, new MensajeTransferencia(id, cuenta, monto, TiposMensaje.Consulta));
+        await using var comando = new SqlCommand("""
+            UPDATE dbo.Transferencia
+            SET Consultas = Consultas + 1, ConsultadaEn = SYSUTCDATETIME(), ActualizadaEn = SYSUTCDATETIME()
+            WHERE TransferenciaId = @id
+            """, conexion);
+        comando.Parameters.AddWithValue("@id", id);
+        await comando.ExecuteNonQueryAsync();
+        Console.WriteLine($"[origen] consulta por identidad {id}");
+    }
+
+    private static async Task AplicarRespuesta(SqlConnection conexion, Broker broker, MensajeTransferencia respuesta)
+    {
+        if (respuesta.Tipo == TiposMensaje.ConsultaRecibida)
+        {
+            await using var comando = new SqlCommand("""
+                UPDATE dbo.Transferencia
+                SET Estado = @estado, ActualizadaEn = SYSUTCDATETIME()
+                WHERE TransferenciaId = @id AND Estado = N'Enviada'
+                """, conexion);
+            comando.Parameters.AddWithValue("@estado", Estados.ResultadoPendiente);
+            comando.Parameters.AddWithValue("@id", respuesta.TransferenciaId);
+            await comando.ExecuteNonQueryAsync();
+            Console.WriteLine($"[origen] la consulta encontró la solicitud {respuesta.TransferenciaId}");
+            return;
+        }
+
+        if (respuesta.Tipo == TiposMensaje.ConsultaInexistente)
+            await Reenviar(conexion, broker, respuesta.TransferenciaId, respuesta.CuentaId, respuesta.Monto);
+    }
+
     private static async Task AplicarResultados(SqlConnection conexion, Broker broker)
     {
+        if (Environment.GetEnvironmentVariable("EFECTO") == "ComprobacionSeparada")
+        {
+            await Task.WhenAll(AplicarUnoSeparado(), AplicarUnoSeparado());
+            return;
+        }
+
         while (broker.Tomar(Colas.Resultados) is { } mensaje)
         {
             await using var transaccion = (SqlTransaction)await conexion.BeginTransactionAsync();
@@ -262,5 +380,51 @@ public static class Programa
             broker.Publicar(Colas.Acuses, mensaje with { Tipo = TiposMensaje.Acuse });
             Console.WriteLine($"[origen] resultado aplicado {mensaje.TransferenciaId}");
         }
+    }
+
+    private static async Task AplicarUnoSeparado()
+    {
+        using var broker = new Broker();
+        if (broker.Tomar(Colas.Resultados) is not { } mensaje)
+            return;
+
+        await using var conexion = new SqlConnection(Cadena);
+        await conexion.OpenAsync();
+        await using var existeCmd = new SqlCommand("""
+            SELECT COUNT(*) FROM dbo.IdentidadProcesada WHERE TransferenciaId = @id
+            """, conexion);
+        existeCmd.Parameters.AddWithValue("@id", mensaje.TransferenciaId);
+        var existe = (int)(await existeCmd.ExecuteScalarAsync() ?? 0);
+        await Task.Delay(400);
+        if (existe != 0)
+            return;
+
+        await using var efecto = new SqlCommand("""
+            INSERT INTO dbo.Efecto (EfectoId, TransferenciaId, Tipo, Monto)
+            VALUES (NEWID(), @id, N'Debito', @monto);
+            UPDATE dbo.Retencion SET Vigente = 0 WHERE TransferenciaId = @id;
+            UPDATE dbo.Transferencia
+            SET Estado = @estado, ActualizadaEn = SYSUTCDATETIME()
+            WHERE TransferenciaId = @id
+            """, conexion);
+        efecto.Parameters.AddWithValue("@id", mensaje.TransferenciaId);
+        efecto.Parameters.AddWithValue("@monto", mensaje.Monto);
+        efecto.Parameters.AddWithValue("@estado", Estados.Debitada);
+        await efecto.ExecuteNonQueryAsync();
+
+        try
+        {
+            await using var identidad = new SqlCommand("""
+                INSERT INTO dbo.IdentidadProcesada (TransferenciaId) VALUES (@id)
+                """, conexion);
+            identidad.Parameters.AddWithValue("@id", mensaje.TransferenciaId);
+            await identidad.ExecuteNonQueryAsync();
+        }
+        catch (SqlException excepcion) when (excepcion.Number is 2627 or 2601)
+        {
+            Console.WriteLine($"[origen] la comprobación separada ya no pudo reservar {mensaje.TransferenciaId}");
+        }
+
+        Console.WriteLine($"[origen] efecto aplicado fuera de la reserva {mensaje.TransferenciaId}");
     }
 }

@@ -16,6 +16,9 @@ public static class TiposMensaje
 {
     public const string Solicitud = "Solicitud";
     public const string ConfirmacionInicial = "ConfirmacionInicial";
+    public const string Consulta = "Consulta";
+    public const string ConsultaRecibida = "ConsultaRecibida";
+    public const string ConsultaInexistente = "ConsultaInexistente";
     public const string ResultadoSatisfactorio = "ResultadoSatisfactorio";
     public const string Acuse = "Acuse";
 }
@@ -25,6 +28,7 @@ public static class Colas
     public const string Solicitudes = "transferencias.solicitudes";
     public const string Confirmaciones = "transferencias.confirmaciones";
     public const string Consultas = "transferencias.consultas";
+    public const string RespuestasConsulta = "transferencias.respuestas-consulta";
     public const string Resultados = "transferencias.resultados";
     public const string Acuses = "transferencias.acuses";
 
@@ -33,6 +37,7 @@ public static class Colas
         Solicitudes,
         Confirmaciones,
         Consultas,
+        RespuestasConsulta,
         Resultados,
         Acuses
     ];

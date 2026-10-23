@@ -9,7 +9,7 @@
 - **Fecha de inicio:** 23 de septiembre de 2026.
 - **Predefensa:** inicios de noviembre de 2026, sin día fijado.
 - **Defensa:** finales de noviembre de 2026, sin día fijado.
-- **Etapa actual:** E8. Evaluación.
+- **Etapa actual:** Acompañamiento de Design Science cerrado. Listo para la traducción institucional.
 
 ## Etapas completadas
 
@@ -25,6 +25,10 @@
 - E7c. Diseño del artefacto, cerrada el 13 de octubre de 2026.
 - E7d. Plan de construcción y versiones, cerrada el 18 de octubre de 2026.
 - E7e. Construcción y verificación interna, cerrada el 19 de octubre de 2026.
+- E8. Evaluación, cerrada el 22 de octubre de 2026.
+- E7f. Ficha del artefacto, cerrada el 22 de octubre de 2026.
+- E9. Enlace entre la propuesta y la solución, cerrada el 22 de octubre de 2026.
+- E10. Contribución y conclusiones, cerrada el 22 de octubre de 2026.
 
 ## Decisiones tomadas
 
@@ -73,7 +77,7 @@
 - El título provisional seleccionado es «Arquitectura de referencia para el procesamiento confiable de transferencias financieras asíncronas».
 - El núcleo de la contribución seleccionado es producir principios para conservar solicitudes y procesar una sola vez resultados duplicados.
 - El tesista propuso generalizar desde banca hacia arquitecturas monolíticas conectadas con servicios externos. Se rechazó la generalización a todo monolito y se adoptó una clase intermedia: integraciones asíncronas con confirmación inicial, resultado posterior, indisponibilidad temporal y posible duplicación.
-- El título vigente es «Arquitectura de referencia para integraciones asíncronas confiables con servicios externos: evaluación en transferencias financieras».
+- El título vigente del informe institucional es «Selección de mecanismos de confiabilidad para integraciones asíncronas de sistemas monolíticos con servicios externos». El postulante lo confirmó el 22 de octubre de 2026. El título anterior del perfil permanece como antecedente de trabajo.
 - La oración de contribución fue reformulada y explicada por el tesista: los principios permitirán conservar solicitudes aceptadas durante indisponibilidades temporales y evitar aplicar más de una vez los efectos de resultados duplicados.
 - La puerta de contribución de E3 está superada.
 - La evaluación queda limitada a cuatro escenarios del mismo flujo: cierre programado, resultado final duplicado, confirmación inicial perdida y fallo local entre aceptación y despacho durable.
@@ -118,11 +122,16 @@
 - Erlang/OTP 28.5 y RabbitMQ 4.3.6 quedaron instalados. El servicio responde en el puerto 5672. Erlang 29 no se usó porque esa versión de RabbitMQ no la admite.
 - V0 quedó construida en `artefacto/` y `verificar-v0` terminó con código 0 el 18 de octubre de 2026. El publicador se confirmó antes de la confirmación inicial, y el reinicio conservó la transacción ya confirmada.
 - V1, verificada el 19 de octubre de 2026 con cinco repeticiones internas por respuesta, no con las 240 sumativas. La publicación directa perdió el despacho en 5 de 5 caídas. El trabajo pendiente lo retomó en 5 de 5. Las medianas de aceptación fueron 97 ms y 95 ms. El umbral del 20% no se modifica.
+- El 22 de octubre de 2026 el tesista aceptó V2. Al arrancar, una transferencia en fondos retenidos sin trabajo pendiente y sin confirmación del publicador pasa a conciliación, sin débito ni liberación. La regresión dio 5 de 5 en conciliación para la publicación directa y 5 de 5 debitadas para el trabajo pendiente.
+- El 22 de octubre de 2026 se cerró la sumativa: 30 de 30 en cada uno de los ocho brazos. El registro está en `artefacto/resultados/sumativa.csv`. Los umbrales de E6 no se modificaron. I2 cuenta filas de efecto, no un segundo descuento del saldo. I7 no se volvió a medir.
+- La ficha de E7f describe la instancia evaluada. Polly, el rechazo final, el reenvío cuando la consulta no encuentra la solicitud y la conciliación por silencio de la consulta quedaron fuera de las 240 pasadas.
+- E9 cierra la trazabilidad. Esas cuatro rutas quedan como no evaluadas. I1 escrito en E6 mide registro recuperable; en la caída local los dos brazos lo conservan. La diferencia medida es si el despacho se retoma.
+- E10 formula cinco principios, solo sobre filas cumplidas: aceptar y diferir, efecto atómico, consulta si la identidad ya fue recibida, trabajo pendiente antes de publicar, y conciliación cuando no hay despacho recuperable. La consulta no se presenta como prueba de que el reenvío duplica el débito.
 
 ## Decisiones pendientes
 
-- Ninguna de E7e.
+Ninguna etapa de E0 a E10 queda abierta. El trabajo de Design Science está listo para que el agente de traducción lo pase a la plantilla institucional. Esa traducción no reemplaza la predefensa.
 
 ## Próxima etapa
 
-E8. Interpretar el fallo local como evaluación formativa y documentar el rediseño antes de la sumativa.
+Traducción institucional, fuera de este acompañamiento.

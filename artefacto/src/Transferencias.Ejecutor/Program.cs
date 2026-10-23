@@ -14,9 +14,9 @@ public static class Programa
     public static async Task<int> Main(string[] args)
     {
         var comando = args.Length == 0 ? "verificar-v0" : args[0];
-        if (comando is not ("verificar-v0" or "verificar-v1"))
+        if (comando is not ("verificar-v0" or "verificar-v1" or "verificar-v2" or "verificar-contrastes" or "verificar-sumativa"))
         {
-            Console.WriteLine("Uso: Transferencias.Ejecutor verificar-v0 | verificar-v1");
+            Console.WriteLine("Uso: Transferencias.Ejecutor verificar-v0 | verificar-v1 | verificar-v2 | verificar-contrastes | verificar-sumativa");
             return 1;
         }
 
@@ -37,10 +37,25 @@ public static class Programa
                 await VerificarReinicio(origen, camara);
                 Console.WriteLine("[ejecutor] V0 verificada");
             }
-            else
+            else if (comando == "verificar-v1")
             {
                 await VerificarFalloLocal(origen, camara);
                 Console.WriteLine("[ejecutor] V1 verificada");
+            }
+            else if (comando == "verificar-v2")
+            {
+                await VerificarRedisenio(origen, camara);
+                Console.WriteLine("[ejecutor] V2 verificada");
+            }
+            else if (comando == "verificar-contrastes")
+            {
+                await VerificarContrastes(origen, camara);
+                Console.WriteLine("[ejecutor] contrastes verificados");
+            }
+            else
+            {
+                await VerificarSumativa(origen, camara);
+                Console.WriteLine("[ejecutor] sumativa terminada");
             }
         }
         catch (Exception excepcion)
@@ -50,6 +65,48 @@ public static class Programa
         }
 
         return 0;
+    }
+
+    private static async Task VerificarRedisenio(string origenRuta, string camaraRuta)
+    {
+        const int repeticiones = 5;
+        for (var i = 0; i < repeticiones; i++)
+        {
+            await Limpiar();
+            using (var origen = Iniciar(origenRuta, detener: true, "Directa"))
+            {
+                await InsertarSolicitud(25m);
+                await origen.EsperarSalida(TimeSpan.FromSeconds(15));
+            }
+
+            using (var reanudado = Iniciar(origenRuta, detener: false, "Directa"))
+            using (Iniciar(camaraRuta, detener: false))
+            {
+                await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Conciliacion'", 1, TimeSpan.FromSeconds(8));
+            }
+
+            await ExigirEscalar("SELECT COUNT(*) FROM dbo.Efecto", 0);
+            await ExigirEscalar("SELECT COUNT(*) FROM dbo.Retencion WHERE Vigente = 1", 1);
+            await ExigirEscalar("SELECT Saldo FROM dbo.Cuenta WHERE CuentaId = N'C-100'", 975m);
+        }
+
+        for (var i = 0; i < repeticiones; i++)
+        {
+            await Limpiar();
+            using (var origen = Iniciar(origenRuta, detener: true, "TrabajoPendiente"))
+            {
+                await InsertarSolicitud(25m);
+                await origen.EsperarSalida(TimeSpan.FromSeconds(15));
+            }
+
+            using var reanudado = Iniciar(origenRuta, detener: false, "TrabajoPendiente");
+            using var camara = Iniciar(camaraRuta, detener: false);
+            await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Debitada'", 1, TimeSpan.FromSeconds(8));
+            await ExigirEscalar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Conciliacion'", 0);
+        }
+
+        Console.WriteLine("[ejecutor] V2 directa: 5/5 en conciliación, con retención vigente y sin débito");
+        Console.WriteLine("[ejecutor] V2 trabajo pendiente: 5/5 debitadas y ninguna en conciliación");
     }
 
     private static async Task VerificarFalloLocal(string origenRuta, string camaraRuta)
@@ -184,7 +241,188 @@ public static class Programa
         await ExigirEscalar("SELECT COUNT(*) FROM dbo.IdentidadProcesada", 1);
     }
 
-    private static Proceso Iniciar(string dll, bool detener, string publicacion = "TrabajoPendiente")
+    private static async Task VerificarContrastes(string origenRuta, string camaraRuta)
+    {
+        await ProbarCierreRechazo(origenRuta, camaraRuta);
+        await PrepararCorrida();
+        await ProbarCierreAceptado(origenRuta, camaraRuta);
+        await PrepararCorrida();
+        await ProbarDuplicado(origenRuta, camaraRuta, separado: false);
+        await PrepararCorrida();
+        await ProbarDuplicado(origenRuta, camaraRuta, separado: true);
+        await PrepararCorrida();
+        await ProbarConfirmacionPerdida(origenRuta, camaraRuta, consulta: true);
+        await PrepararCorrida();
+        await ProbarConfirmacionPerdida(origenRuta, camaraRuta, consulta: false);
+    }
+
+    private static async Task PrepararCorrida()
+    {
+        using (var broker = new Broker())
+            broker.Vaciar();
+        await Limpiar();
+    }
+
+    private static async Task ProbarCierreRechazo(string origenRuta, string camaraRuta)
+    {
+        await Ejecutar("UPDATE dbo.Ventana SET Abierta = 0, ReabiertaEn = NULL WHERE Id = 1");
+        using var origen = Iniciar(origenRuta, detener: false, extras: new() { ["CIERRE"] = "Rechazar" });
+        using var camara = Iniciar(camaraRuta, detener: false);
+        await InsertarSolicitud(25m);
+        await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'RechazadaSinRetencion'", 1, TimeSpan.FromSeconds(10));
+        await ExigirEscalar("SELECT Saldo FROM dbo.Cuenta WHERE CuentaId = N'C-100'", 1000m);
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Retencion", 0);
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Efecto", 0);
+        Console.WriteLine("[ejecutor] durante el cierre, el rechazo no retiene fondos");
+    }
+
+    private static async Task ProbarCierreAceptado(string origenRuta, string camaraRuta)
+    {
+        await Ejecutar("UPDATE dbo.Ventana SET Abierta = 0, ReabiertaEn = NULL WHERE Id = 1");
+        using var origen = Iniciar(origenRuta, detener: false);
+        using var camara = Iniciar(camaraRuta, detener: false);
+        await InsertarSolicitud(25m);
+        await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'FondosRetenidos'", 1, TimeSpan.FromSeconds(10));
+        await Task.Delay(1500);
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Transferencia WHERE PublicadorConfirmadoEn IS NULL", 1);
+        await Ejecutar("UPDATE dbo.Ventana SET Abierta = 1, ReabiertaEn = SYSUTCDATETIME() WHERE Id = 1");
+        await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Debitada'", 1, TimeSpan.FromSeconds(15));
+        await ExigirEscalar("""
+            SELECT CASE
+                WHEN DATEDIFF(MILLISECOND, v.ReabiertaEn, t.PublicadorConfirmadoEn) BETWEEN 0 AND 10000 THEN 1
+                ELSE 0 END
+            FROM dbo.Transferencia t CROSS JOIN dbo.Ventana v
+            """, 1);
+        await ExigirEstadoFinal(975m);
+        Console.WriteLine("[ejecutor] la aceptación diferida se despacha dentro de los 10 segundos");
+    }
+
+    private static async Task ProbarDuplicado(string origenRuta, string camaraRuta, bool separado)
+    {
+        var extrasOrigen = separado
+            ? new Dictionary<string, string> { ["EFECTO"] = "ComprobacionSeparada" }
+            : null;
+        using var origen = Iniciar(origenRuta, detener: false, extras: extrasOrigen);
+        using var camara = Iniciar(camaraRuta, detener: false, extras: new() { ["CAMARA_DUPLICAR_RESULTADO"] = "1" });
+        await InsertarSolicitud(25m);
+        var efectos = separado ? 2 : 1;
+        await Esperar("SELECT COUNT(*) FROM dbo.Efecto", efectos, TimeSpan.FromSeconds(15));
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.IdentidadProcesada", 1);
+        await ExigirEscalar("SELECT Saldo FROM dbo.Cuenta WHERE CuentaId = N'C-100'", 975m);
+        Console.WriteLine(separado
+            ? "[ejecutor] la comprobación separada aplica el efecto dos veces"
+            : "[ejecutor] la transacción única deja un solo efecto");
+    }
+
+    private static async Task ProbarConfirmacionPerdida(string origenRuta, string camaraRuta, bool consulta)
+    {
+        var extrasOrigen = consulta
+            ? null
+            : new Dictionary<string, string> { ["RECUPERACION"] = "ReenvioInmediato" };
+        using var origen = Iniciar(origenRuta, detener: false, extras: extrasOrigen);
+        using var camara = Iniciar(camaraRuta, detener: false, extras: new() { ["CAMARA_PERDER_1B"] = "1" });
+        await InsertarSolicitud(25m);
+        await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Debitada'", 1, TimeSpan.FromSeconds(25));
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Efecto", 1);
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.CamaraSolicitud", 1);
+        await ExigirEscalar("SELECT Consultas FROM dbo.Transferencia", consulta ? 1 : 0);
+        await ExigirEscalar("SELECT Reenvios FROM dbo.Transferencia", consulta ? 0 : 1);
+        if (consulta)
+        {
+            await ExigirEscalar("""
+                SELECT CASE
+                    WHEN DATEDIFF(SECOND, PublicadorConfirmadoEn, ConsultadaEn) >= 10 THEN 1
+                    ELSE 0 END
+                FROM dbo.Transferencia
+                """, 1);
+        }
+        Console.WriteLine(consulta
+            ? "[ejecutor] sin confirmación inicial, la consulta evita el reenvío"
+            : "[ejecutor] sin confirmación inicial, el reenvío inmediato usa la misma identidad");
+    }
+
+    private static async Task VerificarSumativa(string origenRuta, string camaraRuta)
+    {
+        var casos = new (string Escenario, string Brazo, Func<Task> Accion)[]
+        {
+            ("cierre", "rechazar", () => ProbarCierreRechazo(origenRuta, camaraRuta)),
+            ("cierre", "aceptar", () => ProbarCierreAceptado(origenRuta, camaraRuta)),
+            ("duplicado", "atomico", () => ProbarDuplicado(origenRuta, camaraRuta, separado: false)),
+            ("duplicado", "separado", () => ProbarDuplicado(origenRuta, camaraRuta, separado: true)),
+            ("confirmacion", "consulta", () => ProbarConfirmacionPerdida(origenRuta, camaraRuta, consulta: true)),
+            ("confirmacion", "reenvio", () => ProbarConfirmacionPerdida(origenRuta, camaraRuta, consulta: false)),
+            ("caida", "directa", () => ProbarCaida(origenRuta, camaraRuta, "Directa")),
+            ("caida", "trabajo-pendiente", () => ProbarCaida(origenRuta, camaraRuta, "TrabajoPendiente"))
+        };
+
+        var destino = Path.Combine(BuscarSolucion(), "resultados", "sumativa.csv");
+        Directory.CreateDirectory(Path.GetDirectoryName(destino)!);
+        var filas = new List<string> { "escenario,brazo,repeticion,cumple,detalle" };
+        foreach (var caso in casos)
+        {
+            var cumple = 0;
+            for (var repeticion = 1; repeticion <= 30; repeticion++)
+            {
+                await PrepararCorrida();
+                var detalle = "ok";
+                try
+                {
+                    await caso.Accion();
+                    cumple++;
+                }
+                catch (Exception excepcion)
+                {
+                    detalle = excepcion.Message.Replace(',', ';').Replace('\r', ' ').Replace('\n', ' ');
+                }
+
+                filas.Add($"{caso.Escenario},{caso.Brazo},{repeticion},{(detalle == "ok" ? 1 : 0)},{detalle}");
+                Console.WriteLine($"[sumativa] {caso.Escenario}/{caso.Brazo} {repeticion}/30 {(detalle == "ok" ? "cumple" : "falla")}");
+            }
+
+            Console.WriteLine($"[sumativa] {caso.Escenario}/{caso.Brazo}: {cumple}/30");
+        }
+
+        await File.WriteAllLinesAsync(destino, filas);
+        Console.WriteLine($"[sumativa] registro escrito en {destino}");
+    }
+
+    private static async Task ProbarCaida(string origenRuta, string camaraRuta, string publicacion)
+    {
+        using (var origen = Iniciar(origenRuta, detener: true, publicacion))
+        {
+            await InsertarSolicitud(25m);
+            await origen.EsperarSalida(TimeSpan.FromSeconds(15));
+        }
+
+        using var reanudado = Iniciar(origenRuta, detener: false, publicacion);
+        using var camara = Iniciar(camaraRuta, detener: false);
+        if (publicacion == "Directa")
+        {
+            await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Conciliacion'", 1, TimeSpan.FromSeconds(8));
+            await ExigirEscalar("SELECT COUNT(*) FROM dbo.Efecto", 0);
+            await ExigirEscalar("SELECT COUNT(*) FROM dbo.Retencion WHERE Vigente = 1", 1);
+            await ExigirEscalar("SELECT Saldo FROM dbo.Cuenta WHERE CuentaId = N'C-100'", 975m);
+            return;
+        }
+
+        await Esperar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Debitada'", 1, TimeSpan.FromSeconds(8));
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Transferencia WHERE Estado = N'Conciliacion'", 0);
+        await ExigirEscalar("SELECT COUNT(*) FROM dbo.Efecto", 1);
+    }
+
+    private static async Task Ejecutar(string sql)
+    {
+        await using var conexion = new SqlConnection(Cadena);
+        await conexion.OpenAsync();
+        await using var comando = new SqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private static Proceso Iniciar(
+        string dll,
+        bool detener,
+        string publicacion = "TrabajoPendiente",
+        Dictionary<string, string>? extras = null)
     {
         var inicio = new ProcessStartInfo("dotnet", $"exec \"{dll}\"")
         {
@@ -195,6 +433,11 @@ public static class Programa
         inicio.Environment["PUBLICACION"] = publicacion;
         if (detener)
             inicio.Environment["ORIGEN_DETENER_TRAS_ACEPTAR"] = "1";
+        if (extras is not null)
+        {
+            foreach (var par in extras)
+                inicio.Environment[par.Key] = par.Value;
+        }
         var proceso = Process.Start(inicio) ?? throw new InvalidOperationException($"No arrancó {dll}");
         proceso.OutputDataReceived += (_, evento) => { if (evento.Data is not null) Console.WriteLine(evento.Data); };
         proceso.ErrorDataReceived += (_, evento) => { if (evento.Data is not null) Console.WriteLine(evento.Data); };
